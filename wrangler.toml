@@ -1,3 +1,5 @@
+# 推荐使用 Cloudflare Pages：网页端连接 GitHub 自动部署，无需本地命令。
+# 本文件仅用于可选的 Wrangler CLI 部署方式。
 name = "cf-personal-nav"
 main = "src/index.js"
 compatibility_date = "2025-01-01"

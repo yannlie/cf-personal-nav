@@ -38,6 +38,8 @@ class FakeKV {
 
 const env = {
   NAV_KV: new FakeKV(),
+  PUBLIC_MODE: process.env.PUBLIC_MODE,
+  REGISTER_KEY: process.env.REGISTER_KEY,
   ASSETS: {
     async fetch(request) {
       const url = new URL(request.url);

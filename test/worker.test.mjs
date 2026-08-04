@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
+import { onRequest as pagesOnRequest } from '../functions/api/[[path]].js';
 
 class FakeKV {
   constructor() {
@@ -243,6 +244,47 @@ test('不同账户的站点数据相互隔离', async () => {
 
   assert.deepEqual(aliceNames, ['Alice Blog']);
   assert.deepEqual(bobNames, ['Bob Site']);
+});
+
+test('公开模式无需登录即可读写共享站点', async () => {
+  const e = env(new FakeKV(), { PUBLIC_MODE: 'true' });
+
+  const config = await worker.fetch(request('/api/config'), e);
+  assert.deepEqual(await config.json(), { publicMode: true });
+
+  const initial = await worker.fetch(request('/api/sites'), e);
+  assert.equal(initial.status, 200);
+  assert.deepEqual((await initial.json()).sites, []);
+
+  const save = await worker.fetch(
+    request('/api/sites', {
+      method: 'PUT',
+      body: { sites: [{ name: '公开站点', url: 'https://example.com' }] },
+    }),
+    e
+  );
+  assert.equal(save.status, 200);
+
+  const loaded = await worker.fetch(request('/api/sites'), e);
+  assert.deepEqual(
+    (await loaded.json()).sites.map((site) => site.name),
+    ['公开站点']
+  );
+
+  const register = await worker.fetch(
+    request('/api/register', {
+      method: 'POST',
+      body: { username: 'nobody', password: 'password123' },
+    }),
+    e
+  );
+  assert.equal(register.status, 400);
+});
+
+test('Pages Functions 适配层可以处理 API 请求', async () => {
+  const e = env();
+  const response = await pagesOnRequest({ request: request('/api/config'), env: e });
+  assert.deepEqual(await response.json(), { publicMode: false });
 });
 
 test('静态资源请求交给 ASSETS 处理', async () => {

@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 
 const state = {
   user: null,
+  publicMode: false,
   sites: [],
   editSites: [],
   editing: false,
@@ -63,6 +64,7 @@ function setAuthError(message) {
 
 function showAuth() {
   state.user = null;
+  state.publicMode = false;
   state.sites = [];
   state.editSites = [];
   state.editing = false;
@@ -80,8 +82,9 @@ function showAuth() {
 
 async function enterApp() {
   $('#user-name').textContent = state.user;
+  $('#user-name').classList.toggle('hidden', state.publicMode);
+  $('#logout-btn').classList.toggle('hidden', state.publicMode);
   $('#edit-btn').classList.remove('hidden');
-  $('#logout-btn').classList.remove('hidden');
   $('#auth-view').classList.add('hidden');
   $('#editor-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
@@ -374,6 +377,19 @@ async function init() {
   setupTheme();
   setupAuth();
   setupActions();
+
+  try {
+    const config = await api('/api/config');
+    state.publicMode = Boolean(config.publicMode);
+  } catch {
+    state.publicMode = false;
+  }
+
+  if (state.publicMode) {
+    state.user = 'public';
+    await enterApp();
+    return;
+  }
 
   try {
     const me = await api('/api/me');
