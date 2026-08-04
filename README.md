@@ -2,6 +2,8 @@
 
 一个可部署到 Cloudflare Workers 的个人导航站。每个账户有独立的站点列表，登录后可在页面上直接增删改。
 
+项目仓库：<https://github.com/yannlie/cf-personal-nav>
+
 ## 功能
 
 - 用户名密码注册/登录，密码使用 PBKDF2 加盐哈希保存
