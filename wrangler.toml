@@ -1,0 +1,10 @@
+name = "cf-personal-nav"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+assets = { directory = "./public", not_found_handling = "single-page-application" }
+
+[[kv_namespaces]]
+binding = "NAV_KV"
+id = "replace-with-your-kv-namespace-id"
+preview_id = "replace-with-your-kv-namespace-id"
