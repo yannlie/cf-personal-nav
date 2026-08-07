@@ -281,6 +281,42 @@ test('公开模式无需登录即可读写共享站点', async () => {
   assert.equal(register.status, 400);
 });
 
+test('导航名称和副标题可以保存并读取', async () => {
+  const e = env();
+  await worker.fetch(
+    request('/api/register', {
+      method: 'POST',
+      body: { username: 'alice', password: 'password123' },
+    }),
+    e
+  );
+  const login = await worker.fetch(
+    request('/api/login', {
+      method: 'POST',
+      body: { username: 'alice', password: 'password123' },
+    }),
+    e
+  );
+  const token = sessionCookie(login);
+
+  const save = await worker.fetch(
+    request('/api/sites', {
+      method: 'PUT',
+      body: {
+        sites: [],
+        settings: { title: '我的工具箱', subtitle: '常用入口' },
+      },
+      headers: authedHeaders(token),
+    }),
+    e
+  );
+  assert.equal(save.status, 200);
+
+  const loaded = await worker.fetch(request('/api/sites', { headers: authedHeaders(token) }), e);
+  const data = await loaded.json();
+  assert.deepEqual(data.settings, { title: '我的工具箱', subtitle: '常用入口' });
+});
+
 test('Pages Functions 适配层可以处理 API 请求', async () => {
   const e = env();
   const response = await pagesOnRequest({ request: request('/api/config'), env: e });

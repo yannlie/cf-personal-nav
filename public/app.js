@@ -1,8 +1,13 @@
 const $ = (selector) => document.querySelector(selector);
 
+const DEFAULT_SETTINGS = { title: '我的导航', subtitle: '自建站点，一处直达' };
+const ICON_COLORS = ['#0a84ff', '#30b0c7', '#34c759', '#ff9f0a', '#ff375f', '#bf5af2', '#64d2ff', '#ffd60a'];
+const PRESET_ICONS = ['🌐', '✍️', '📷', '🎧', '🎬', '💻', '📦', '⚙️'];
+
 const state = {
   user: null,
   publicMode: false,
+  settings: { ...DEFAULT_SETTINGS },
   sites: [],
   editSites: [],
   editing: false,
@@ -65,6 +70,7 @@ function setAuthError(message) {
 function showAuth() {
   state.user = null;
   state.publicMode = false;
+  state.settings = { ...DEFAULT_SETTINGS };
   state.sites = [];
   state.editSites = [];
   state.editing = false;
@@ -97,10 +103,19 @@ async function loadSites() {
   const data = await api('/api/sites');
   state.sites = Array.isArray(data.sites) ? data.sites : [];
   state.editSites = state.sites.map((site) => ({ ...site }));
+  state.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
   render();
 }
 
 function render() {
+  const title = state.settings.title || DEFAULT_SETTINGS.title;
+  const subtitle = state.settings.subtitle || DEFAULT_SETTINGS.subtitle;
+  document.title = title;
+  $('#nav-brand-text').textContent = title;
+  $('.hero h1').textContent = title;
+  $('.hero p').textContent = subtitle;
+  $('#footer-text').textContent = `© ${new Date().getFullYear()} ${title}`;
+
   const keyword = $('#search').value.trim().toLowerCase();
   const groupsEl = $('#groups');
   const emptyEl = $('#empty');
@@ -153,9 +168,7 @@ function buildCard(site) {
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
 
-  const icon = document.createElement('span');
-  icon.className = 'icon';
-  icon.textContent = site.icon || site.name.slice(0, 1);
+  const icon = site.icon && site.icon.trim() ? textIcon(site.icon) : faviconTile(site);
 
   const meta = document.createElement('span');
   meta.className = 'meta';
@@ -169,6 +182,69 @@ function buildCard(site) {
   meta.append(name, desc);
   link.append(icon, meta, arrowSvg());
   return link;
+}
+
+function textIcon(text) {
+  const span = document.createElement('span');
+  span.className = 'icon';
+  span.textContent = text;
+  return span;
+}
+
+function initialTile(name) {
+  const span = document.createElement('span');
+  span.className = 'icon icon-fallback';
+  span.style.background = iconColor(name);
+  span.style.color = '#fff';
+
+  const text = document.createElement('span');
+  text.className = 'icon-fallback-text';
+  text.textContent = (name || '?').slice(0, 1).toUpperCase();
+  span.append(text);
+  return span;
+}
+
+function iconColor(name) {
+  let hash = 0;
+  for (const ch of String(name || '')) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  return ICON_COLORS[hash % ICON_COLORS.length];
+}
+
+function getDomain(value) {
+  try {
+    return new URL(normalizeUrl(value)).hostname;
+  } catch {
+    return '';
+  }
+}
+
+function faviconTile(site) {
+  const domain = getDomain(site.url);
+  if (!domain) return initialTile(site.name);
+
+  const span = document.createElement('span');
+  span.className = 'icon';
+
+  const fallback = initialTile(site.name);
+  fallback.classList.add('icon-fallback-layer');
+
+  const img = document.createElement('img');
+  img.className = 'icon-img';
+  img.alt = '';
+  img.loading = 'lazy';
+  img.referrerPolicy = 'no-referrer';
+  img.decoding = 'async';
+  img.src = `https://icons.duckduckgo.com/ip3/${domain}.ico`;
+  img.addEventListener('load', () => {
+    span.classList.add('icon-has-image');
+  });
+  img.addEventListener('error', () => {
+    img.remove();
+    span.classList.remove('icon-has-image');
+  });
+
+  span.append(fallback, img);
+  return span;
 }
 
 function arrowSvg() {
@@ -208,6 +284,8 @@ function closeEditor() {
 function renderEditor() {
   const list = $('#editor-list');
   list.textContent = '';
+  $('#settings-name').value = state.settings.title || '';
+  $('#settings-subtitle').value = state.settings.subtitle || '';
   state.editSites.forEach((site, index) => list.append(editRow(site, index)));
 }
 
@@ -217,9 +295,9 @@ function editRow(site, index) {
   row.dataset.index = String(index);
 
   row.append(
-    field('图标', 'icon', site.icon),
+    iconField(site),
     field('名称', 'name', site.name),
-    field('链接', 'url', site.url),
+    urlField(site),
     field('描述', 'desc', site.desc),
     field('分组', 'category', site.category)
   );
@@ -250,9 +328,7 @@ function field(labelText, key, value) {
   const input = document.createElement('input');
   input.value = value || '';
   input.dataset.field = key;
-  if (key === 'url') input.type = 'url';
   if (key === 'name') input.maxLength = 50;
-  if (key === 'url') input.maxLength = 500;
   if (key === 'desc') input.maxLength = 100;
   if (key === 'category') input.maxLength = 30;
   if (key === 'icon') input.maxLength = 8;
@@ -267,17 +343,113 @@ function field(labelText, key, value) {
   return wrap;
 }
 
+function iconField(site) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+
+  const label = document.createElement('label');
+  label.textContent = '图标';
+
+  const input = document.createElement('input');
+  input.value = site.icon || '';
+  input.dataset.field = 'icon';
+  input.maxLength = 8;
+  input.addEventListener('input', () => {
+    const row = input.closest('.edit-row');
+    const target = state.editSites[Number(row.dataset.index)];
+    if (target) target.icon = input.value;
+  });
+
+  const presets = document.createElement('div');
+  presets.className = 'icon-presets';
+  PRESET_ICONS.forEach((emoji) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'icon-preset';
+    button.textContent = emoji;
+    button.setAttribute('aria-label', `设置图标 ${emoji}`);
+    button.addEventListener('click', () => {
+      const row = button.closest('.edit-row');
+      const target = state.editSites[Number(row.dataset.index)];
+      if (target) target.icon = emoji;
+      input.value = emoji;
+    });
+    presets.append(button);
+  });
+
+  wrap.append(label, input, presets);
+  return wrap;
+}
+
+function urlField(site) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+
+  const label = document.createElement('label');
+  label.textContent = '链接';
+
+  const group = document.createElement('div');
+  group.className = 'url-group';
+
+  const select = document.createElement('select');
+  select.className = 'url-proto';
+  ['https://', 'http://'].forEach((protocol) => {
+    const option = document.createElement('option');
+    option.value = protocol;
+    option.textContent = protocol;
+    select.append(option);
+  });
+
+  const input = document.createElement('input');
+  input.maxLength = 500;
+
+  const parts = splitUrl(site.url);
+  select.value = parts.protocol;
+  input.value = parts.rest;
+
+  const update = () => {
+    const row = wrap.closest('.edit-row');
+    const target = state.editSites[Number(row.dataset.index)];
+    if (!target) return;
+    const protocol = select.value;
+    const rest = input.value.trim().replace(/^\/+/, '');
+    target.url = rest ? `${protocol}${rest}` : protocol;
+  };
+
+  select.addEventListener('change', update);
+  input.addEventListener('input', update);
+
+  group.append(select, input);
+  wrap.append(label, group);
+  return wrap;
+}
+
+function splitUrl(value) {
+  try {
+    const parsed = new URL(normalizeUrl(value));
+    const protocol = parsed.protocol === 'http:' ? 'http://' : 'https://';
+    const rest = `${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`.replace(/^\/+/, '');
+    return { protocol, rest };
+  } catch {
+    return { protocol: 'https://', rest: String(value || '').replace(/^https?:\/\//i, '') };
+  }
+}
+
 async function saveSites() {
   const button = $('#save-btn');
   button.disabled = true;
   try {
-    const payload = state.editSites.map((site) => ({
-      ...site,
-      url: normalizeUrl(site.url),
-    }));
-    const data = await api('/api/sites', { method: 'PUT', body: { sites: payload } });
+    const payload = {
+      sites: state.editSites.map((site) => ({
+        ...site,
+        url: normalizeUrl(site.url),
+      })),
+      settings: { ...state.settings },
+    };
+    const data = await api('/api/sites', { method: 'PUT', body: payload });
     state.sites = data.sites;
     state.editSites = data.sites.map((site) => ({ ...site }));
+    state.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
     showToast('已保存');
     closeEditor();
   } catch (error) {
@@ -347,6 +519,12 @@ function setupTheme() {
 function setupActions() {
   $('#search').addEventListener('input', render);
   $('#edit-btn').addEventListener('click', openEditor);
+  $('#settings-name').addEventListener('input', (event) => {
+    state.settings.title = event.target.value;
+  });
+  $('#settings-subtitle').addEventListener('input', (event) => {
+    state.settings.subtitle = event.target.value;
+  });
   $('#add-btn').addEventListener('click', () => {
     state.editSites.push({
       id: '',

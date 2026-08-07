@@ -122,7 +122,10 @@ async function getSites(request, env) {
   if (!username) return json({ error: '未登录' }, 401);
 
   const raw = await env.NAV_KV.get(`sites:${username}`);
-  return json({ sites: raw ? JSON.parse(raw) : [] });
+  const sites = raw ? JSON.parse(raw) : [];
+  const settingsRaw = await env.NAV_KV.get(`settings:${username}`);
+  const settings = settingsRaw ? JSON.parse(settingsRaw) : {};
+  return json({ sites, settings });
 }
 
 async function putSites(request, env) {
@@ -132,9 +135,11 @@ async function putSites(request, env) {
   const body = await readJson(request);
   const sites = sanitizeSites(body.sites);
   if (sites === null) return json({ error: '站点数据格式不正确' }, 400);
+  const settings = sanitizeSettings(body.settings);
 
   await env.NAV_KV.put(`sites:${username}`, JSON.stringify(sites));
-  return json({ ok: true, sites });
+  await env.NAV_KV.put(`settings:${username}`, JSON.stringify(settings));
+  return json({ ok: true, sites, settings });
 }
 
 async function currentUser(request, env) {
@@ -201,6 +206,14 @@ function sanitizeSites(input) {
     });
   }
   return output;
+}
+
+function sanitizeSettings(input) {
+  if (!input || typeof input !== 'object') return {};
+  return {
+    title: cleanString(input.title, 50) || '我的导航',
+    subtitle: cleanString(input.subtitle, 100) || '自建站点，一处直达',
+  };
 }
 
 function cleanString(value, maxLength) {

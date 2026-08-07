@@ -12,7 +12,7 @@
   <header class="nav">
     <a class="brand" href="#">
       <span class="brand-mark">导</span>
-      我的导航
+      <span id="nav-brand-text">我的导航</span>
     </a>
     <div class="nav-actions">
       <span class="user-name" id="user-name"></span>
@@ -114,11 +114,27 @@
           </button>
         </div>
       </div>
+      <div class="editor-settings">
+        <div class="field">
+          <label for="settings-name">导航名称</label>
+          <input id="settings-name" maxlength="50">
+        </div>
+        <div class="field">
+          <label for="settings-subtitle">副标题</label>
+          <input id="settings-subtitle" maxlength="100">
+        </div>
+      </div>
       <div id="editor-list" class="editor-list"></div>
     </section>
   </main>
 
-  <footer id="footer" class="hidden">© 2026 我的导航</footer>
+  <footer id="footer" class="hidden">
+    <div class="footer-links">
+      <a href="https://github.com/yannlie" target="_blank" rel="noopener noreferrer">GitHub 主页</a>
+      <a href="https://github.com/yannlie/cf-personal-nav" target="_blank" rel="noopener noreferrer">本项目仓库</a>
+    </div>
+    <p id="footer-text">© 2026 我的导航</p>
+  </footer>
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/app.js"></script>

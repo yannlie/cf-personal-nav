@@ -10,7 +10,9 @@
 - HttpOnly 会话 Cookie，有效期 7 天，会话存在 KV 中
 - 每个账户独立的站点列表
 - 公开模式：设置 `PUBLIC_MODE=true` 后无需登录，所有人共用一份站点列表
-- 页面内编辑站点：名称、链接、描述、分组、图标
+- 页面内编辑站点：名称、链接（可选 HTTP/HTTPS）、描述、分组、图标（含预设图标）
+- 可自定义导航名称和副标题
+- 无站点图标时自动使用首字母彩色占位，或尝试抓取网站 favicon
 - 搜索过滤、深浅色模式、移动端适配
 
 ## 部署（推荐，无需本地环境）
@@ -49,10 +51,10 @@ wrangler.toml              可选 Wrangler 配置
 - `POST /api/login`：`{ username, password }`
 - `POST /api/logout`
 - `GET /api/me`
-- `GET /api/sites`
-- `PUT /api/sites`：`{ sites: [...] }`
+- `GET /api/sites`：返回 `{ sites, settings }`
+- `PUT /api/sites`：`{ sites: [...], settings?: { title?, subtitle? } }`
 
-KV 键结构：`user:<用户名>`、`session:<token>`、`sites:<用户名>`、`meta:users`。
+KV 键结构：`user:<用户名>`、`session:<token>`、`sites:<用户名>`、`settings:<用户名>`、`meta:users`。
 
 ## 测试
 
