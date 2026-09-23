@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check
+        run: |
+          node --check functions/_lib/core.js
+          node --check 'functions/api/[[path]].js'
+          node --check scripts/dev-server.mjs
+          node --check public/js/app.js
+          node --check public/js/api.js
+          node --check public/js/account.js
+          node --check public/js/modal.js
+          node --check public/js/history.js
+          node --check public/js/store.js
+          node --check public/js/search.js
+          node --check public/js/render.js
+          node --check public/js/editor.js
+          node --check public/js/ui.js
+          node --check public/js/bookmarks.js
+          node --check public/js/aliases.js
+          node --check public/js/presets.js
+      - name: Run tests
+        run: node --test test/worker.test.mjs test/bookmarks.test.mjs test/history.test.mjs test/frontend.test.mjs

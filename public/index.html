@@ -5,17 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="自建站点导航：分组卡片、搜索别名、书签导入导出。">
   <title>我的导航</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body data-density="compact">
   <header class="nav">
     <a class="brand" href="#">
       <span class="brand-mark">导</span>
       <span id="nav-brand-text">我的导航</span>
     </a>
     <div class="nav-actions">
-      <span class="user-name" id="user-name"></span>
+      <button class="user-name hidden" id="user-name" type="button" title="账号设置"></button>
+      <button id="density-btn" class="icon-btn hidden" aria-label="切换卡片密度" title="切换卡片密度">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+        </svg>
+      </button>
+      <button id="data-btn" class="icon-btn hidden" aria-label="导入导出" title="导入导出">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <path d="m7 10 5 5 5-5"></path>
+          <path d="M12 15V3"></path>
+        </svg>
+      </button>
       <button id="theme-btn" class="icon-btn" aria-label="切换深浅色模式" title="切换深浅色模式">
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4"></circle>
@@ -74,57 +90,48 @@
 
     <section id="app-view" class="hidden">
       <div class="hero">
-        <h1>我的导航</h1>
-        <p>自建站点，一处直达</p>
+        <h1 id="hero-title">我的导航</h1>
+        <p id="hero-subtitle">自建站点，一处直达</p>
         <div class="search-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="8"></circle>
             <path d="m21 21-4.3-4.3"></path>
           </svg>
-          <input id="search" type="search" placeholder="搜索站点" autocomplete="off" spellcheck="false">
+          <input id="search" type="search" placeholder="搜索站点，或输入 !g 关键词" autocomplete="off" spellcheck="false">
+          <kbd class="search-kbd">/</kbd>
         </div>
+        <p id="search-hint" class="search-hint hidden"></p>
       </div>
+
       <div id="groups"></div>
-      <p id="empty" class="empty hidden">没有找到匹配的站点</p>
+      <div id="onboarding" class="onboarding hidden"></div>
     </section>
 
     <section id="editor-view" class="editor-view hidden">
       <div class="editor-head">
-        <h1>编辑站点</h1>
+        <h2>编辑站点</h2>
         <div class="editor-actions">
-          <button id="add-btn" class="secondary-btn" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 5v14"></path>
-              <path d="M5 12h14"></path>
-            </svg>
-            添加
-          </button>
-          <button id="cancel-btn" class="secondary-btn" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M18 6 6 18"></path>
-              <path d="m6 6 12 12"></path>
-            </svg>
-            取消
-          </button>
-          <button id="save-btn" class="primary-btn" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M20 6 9 17l-5-5"></path>
-            </svg>
-            保存
-          </button>
+          <button id="add-btn" class="secondary-btn" type="button">添加站点</button>
+          <button id="cancel-btn" class="secondary-btn" type="button">取消</button>
+          <button id="save-btn" class="primary-btn" type="button">保存</button>
         </div>
       </div>
+
       <div class="editor-settings">
         <div class="field">
-          <label for="settings-name">导航名称</label>
-          <input id="settings-name" maxlength="50">
+          <label for="settings-title">导航名称</label>
+          <input id="settings-title" maxlength="50">
         </div>
         <div class="field">
           <label for="settings-subtitle">副标题</label>
           <input id="settings-subtitle" maxlength="100">
         </div>
       </div>
-      <div id="editor-list" class="editor-list"></div>
+
+      <p class="editor-tip">拖着左侧手柄可以调整顺序，把站点拖到别的分组里就会改到那个分组；分组名可直接改名，输入新名称即可新建分组。</p>
+
+      <div id="editor-groups"></div>
+      <p id="editor-empty" class="empty hidden">还没有站点，点「添加站点」开始。</p>
     </section>
   </main>
 
@@ -137,6 +144,8 @@
   </footer>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script src="/app.js"></script>
+  <div id="context-menu" class="context-menu hidden" role="menu"></div>
+  <input id="file-input" type="file" class="hidden-file" tabindex="-1" aria-hidden="true">
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>

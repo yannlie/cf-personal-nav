@@ -1,12 +1,16 @@
-# 推荐使用 Cloudflare Pages：网页端连接 GitHub 自动部署，无需本地命令。
-# 本文件仅用于可选的 Wrangler CLI 部署方式。
+# Cloudflare Pages 配置（可选）。
+#
+# 用网页端「连接 GitHub 自动部署」时：Cloudflare 的构建系统**会读取本文件**，
+# 所以下面默认不写任何绑定，KV 一律在控制台里配（见 DEPLOY.md 第 4 步）。
+# 千万不要在这里留一个无效的 KV id —— 那会让 Git 构建直接失败。
+#
+# 只有在用命令行（wrangler pages dev / deploy）时才需要开启 KV 绑定：
+#   1. npx wrangler kv namespace create NAV_KV
+#   2. 把输出的 id 填到下面，并去掉注释符号
 name = "cf-personal-nav"
-main = "src/index.js"
+pages_build_output_dir = "public"
 compatibility_date = "2025-01-01"
 
-assets = { directory = "./public", not_found_handling = "single-page-application" }
-
-[[kv_namespaces]]
-binding = "NAV_KV"
-id = "replace-with-your-kv-namespace-id"
-preview_id = "replace-with-your-kv-namespace-id"
+# [[kv_namespaces]]
+# binding = "NAV_KV"
+# id = "把这里换成你自己的 KV namespace id"

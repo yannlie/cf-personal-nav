@@ -1,13 +1,13 @@
 {
   "name": "cf-personal-nav",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local",
-    "dev:local": "node scripts/dev-server.mjs",
-    "deploy": "wrangler deploy",
-    "test": "node --test test/worker.test.mjs"
+    "dev": "node scripts/dev-server.mjs",
+    "dev:pages": "wrangler pages dev public",
+    "deploy:pages": "wrangler pages deploy public",
+    "test": "node --test test/worker.test.mjs test/bookmarks.test.mjs test/history.test.mjs test/frontend.test.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
