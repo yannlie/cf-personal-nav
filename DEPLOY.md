@@ -122,6 +122,13 @@ KV 是存放账号和站点数据的地方。
 | `PUBLIC_READONLY` | 明文 | `false` | ⚠️ 公开模式**默认只读**，填 `false` 才允许匿名访客编辑 |
 | `PUBLIC_WRITE_KEY` | **Secret** | 你自己定一串 | 公开模式只读时，带 `x-nav-write-key` 请求头才能写 |
 
+进阶（一般不用动）：
+
+| 变量 | 类型 | 说明 |
+| --- | --- | --- |
+| `PBKDF2_ITERATIONS` | 明文 | 密码哈希的迭代次数，默认 `25000`。**免费计划每次请求只有 10ms CPU**，密码哈希是这里最耗 CPU 的一步，迭代次数过高会直接 500（10 万次约 20ms）。升级到付费计划（5 分钟）后可调高，上限 20 万 |
+| `DEBUG_ERRORS` | 明文 | 填 `true` 时，接口 500 会把**真实报错**显示在界面上。**仅用于排查，查完请删掉** |
+
 **注意 Production 与 Preview 是分开的。** Cloudflare 默认把变量加到 Production；
 Preview（非 main 分支的预览部署）需要单独加一遍，否则预览环境里功能会缺一半。
 
@@ -181,7 +188,9 @@ Pages 项目 → `Custom domains` → `Set up a custom domain` → 输入你的�
 | 现象 | 原因与处理 |
 | --- | --- |
 | 接口全部 500 / 502，且提示「缺少 KV 绑定」 | KV 没绑，或绑定变量名不是 `NAV_KV`。绑好后 `Deployments` → `Retry deployment` |
-| 接口 500 但没有「缺少 KV 绑定」字样 | KV 没问题，是代码抛了别的异常。把域名发我，或去 Pages 项目看 Functions 日志 |
+| 接口 500，提示里没有「缺少 KV 绑定」 | KV 没问题，是代码抛了别的异常。最可能是**密码哈希超出 CPU 限额**（见下一条），也可能是别的问题 |
+| **注册 / 登录 500，但浏览列表正常** | 极可能是 **CPU 超限**：免费计划每次请求只有 10ms CPU，而密码哈希是最耗 CPU 的一步（10 万次迭代约 20ms）。把 `PBKDF2_ITERATIONS` 调到 `25000` 或更低 |
+| 想知道 500 到底是什么错 | ① 临时加环境变量 `DEBUG_ERRORS=true`，界面会直接显示真实报错（**查完删掉**）；② Pages 项目 → 部署详情 → Functions 实时日志，或本地跑 `npx wrangler pages deployment tail` |
 | 页面样式/脚本没生效 | `Build output directory` 不是 `public`（写成了 `/public`、仓库根目录，或留空） |
 | 注册提示「注册码错误」 | 你配了 `REGISTER_KEY`，但注册时没填或填错了。第一个账号同样要填 |
 | 注册提示「已创建首个账号」 | 没配 `REGISTER_KEY`，而 KV 里已经有账号了。想再开放注册就配上 `REGISTER_KEY` |

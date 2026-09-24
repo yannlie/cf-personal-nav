@@ -1416,6 +1416,87 @@ test('内部异常返回统一错误，且不泄漏实现细节', async () => {
   assert.equal(response.status, 500);
 
   const body = await response.json();
-  assert.equal(body.error, '服务器内部错误，请查看 Pages 项目的 Functions 日志');
+  // 默认（未开 DEBUG_ERRORS）只给固定文案，细节留给日志
+  assert.equal(body.error, '服务器内部错误');
   assert.equal(/account 12345|KV internal/.test(JSON.stringify(body)), false, '不应回显内部信息');
+});
+
+/* ================= 免费计划 CPU 预算相关 ================= */
+
+test('PBKDF2 默认迭代次数留在免费计划 CPU 预算内，且写进用户记录', async () => {
+  // 免费版 Workers/Pages 每次请求只有 10ms CPU，迭代次数直接决定开销。
+  // 这里钉住默认值，避免以后有人随手调回 10 万（会直接 500）。
+  const e = env();
+  await worker.fetch(
+    request('/api/register', { method: 'POST', body: { username: 'alice', password: 'password123' } }),
+    e
+  );
+
+  const stored = JSON.parse(await e.NAV_KV.get('user:alice'));
+  assert.ok(stored.iterations > 0);
+  assert.ok(
+    stored.iterations <= 25000,
+    `默认迭代次数 ${stored.iterations} 过高，免费计划会 CPU 超限`
+  );
+});
+
+test('迭代次数可用 PBKDF2_ITERATIONS 调整，并有上下限保护', async () => {
+  const cases = [
+    ['1000', 1000],
+    ['30000', 30000],
+    ['5', 1000], // 太低 → 抬到下限
+    ['999999', 200000], // 太高 → 压到上限
+    ['abc', 25000], // 非法 → 回默认
+  ];
+
+  for (const [value, expected] of cases) {
+    const e = env(new FakeKV(), { PBKDF2_ITERATIONS: value });
+    await worker.fetch(
+      request('/api/register', { method: 'POST', body: { username: 'alice', password: 'password123' } }),
+      e
+    );
+    const stored = JSON.parse(await e.NAV_KV.get('user:alice'));
+    assert.equal(stored.iterations, expected, `PBKDF2_ITERATIONS=${value} 应得到 ${expected}`);
+
+    // 改过迭代次数后，同一份记录仍然能登录（用的是记录里的次数）
+    const login = await worker.fetch(
+      request('/api/login', { method: 'POST', body: { username: 'alice', password: 'password123' } }),
+      e
+    );
+    assert.equal(login.status, 200, `PBKDF2_ITERATIONS=${value} 时应能正常登录`);
+  }
+});
+
+test('DEBUG_ERRORS 打开时才回显内部错误细节', async () => {
+  const boom = {
+    NAV_KV: {
+      get() {
+        throw new Error('KV 连接失败：account 12345');
+      },
+      put() {},
+      delete() {},
+    },
+  };
+  const login = () =>
+    pagesOnRequest({
+      request: request('/api/login', {
+        method: 'POST',
+        body: { username: 'alice', password: 'password123' },
+      }),
+      env: boom,
+    });
+
+  const hidden = await (await login()).json();
+  assert.equal(/account 12345/.test(JSON.stringify(hidden)), false, '默认不应回显内部信息');
+
+  const shown = await (
+    await pagesOnRequest({
+      request: request('/api/login', {
+        method: 'POST',
+        body: { username: 'alice', password: 'password123' },
+      }),
+      env: { ...boom, DEBUG_ERRORS: 'true' },
+    })
+  ).json();
+  assert.match(shown.error, /account 12345/, '打开 DEBUG_ERRORS 后应能看到真实报错');
 });

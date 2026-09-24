@@ -98,7 +98,7 @@ async function register(request, env) {
     }
   }
 
-  const record = await hashPassword(password);
+  const record = await hashPassword(password, env);
   await env.NAV_KV.put(
     userKey,
     JSON.stringify({
@@ -200,7 +200,7 @@ async function changePassword(request, env) {
     return json({ error: '当前密码不正确' }, 401);
   }
 
-  const fresh = await hashPassword(next);
+  const fresh = await hashPassword(next, env);
   await env.NAV_KV.put(
     `user:${username}`,
     JSON.stringify({
@@ -684,9 +684,23 @@ function tooManyRequests(retryAfterSeconds) {
   });
 }
 
-async function hashPassword(password) {
+// 免费版 Workers/Pages 每次请求只有 10ms CPU（付费 5 分钟），而 PBKDF2 的 CPU 开销
+// 基本由迭代次数决定：10 万次在原生实现下约 20ms，会直接触发 CPU 超限（表现为 500）。
+// 所以默认取 2.5 万次（约 3-5ms），并留一个环境变量方便按计划调整。
+const DEFAULT_PBKDF2_ITERATIONS = 25000;
+const MIN_PBKDF2_ITERATIONS = 1000;
+const MAX_PBKDF2_ITERATIONS = 200000;
+
+function pbkdf2Iterations(env) {
+  const raw = Number(env && env.PBKDF2_ITERATIONS);
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_PBKDF2_ITERATIONS;
+  return Math.min(MAX_PBKDF2_ITERATIONS, Math.max(MIN_PBKDF2_ITERATIONS, Math.floor(raw)));
+}
+
+async function hashPassword(password, env) {
   const salt = randomBytes(16);
-  const iterations = 100000;
+  // 迭代次数写进用户记录：以后改默认值不会让已有账号登不进来
+  const iterations = pbkdf2Iterations(env);
   const hash = await deriveBits(password, salt, iterations);
   return {
     salt: bytesToBase64(salt),

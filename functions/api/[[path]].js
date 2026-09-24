@@ -22,11 +22,17 @@ export async function onRequest(context) {
 
   try {
     return withSecurityHeaders(await handleApi(request, env));
-  } catch {
-    // 不回显内部错误细节，避免把 KV 报错、堆栈之类泄漏给客户端；
-    // 具体原因去 Pages 的 Functions 日志看。
+  } catch (error) {
+    // 默认不回显内部错误细节，避免把 KV 报错、堆栈之类泄漏给客户端。
+    // 排查阶段可以临时把环境变量 DEBUG_ERRORS 设为 true，让真实报错显示在界面上，
+    // 查完记得删掉这个变量。
+    const detail =
+      env.DEBUG_ERRORS === 'true' && error instanceof Error && error.message
+        ? `：${error.message}`
+        : '';
+
     return withSecurityHeaders(
-      json({ error: '服务器内部错误，请查看 Pages 项目的 Functions 日志' }, 500)
+      json({ error: `服务器内部错误${detail}` }, 500)
     );
   }
 }
