@@ -130,7 +130,7 @@ Preview（非 main 分支的预览部署）需要单独加一遍，否则预览�
 
 | 检查 | 期望结果 | 不符合说明什么 |
 | --- | --- | --- |
-| `https://<域名>/api/config` | `{"publicMode":false,"readonly":false}` | 500 → KV 未绑定或绑定名不对 |
+| `https://<域名>/api/config` | `{"publicMode":false,"readonly":false}` | 返回 500 且提示「缺少 KV 绑定」→ KV 没绑或变量名不对 |
 | 首页能打开且样式正常 | 卡片式界面，不是纯文字 | 构建输出目录填错了 |
 | 能注册并登录 | 进入站点列表 | KV 读写有问题 |
 | 加一个站点 → **刷新页面** | 站点还在 | KV 没写进去 |
@@ -165,7 +165,8 @@ Pages 项目 → `Custom domains` → `Set up a custom domain` → 输入你的�
 
 | 现象 | 原因与处理 |
 | --- | --- |
-| 接口全部 500 / 502 | KV 绑定变量名不是 `NAV_KV`，或绑完没 `Retry deployment` |
+| 接口全部 500 / 502，且提示「缺少 KV 绑定」 | KV 没绑，或绑定变量名不是 `NAV_KV`。绑好后 `Deployments` → `Retry deployment` |
+| 接口 500 但没有「缺少 KV 绑定」字样 | KV 没问题，是代码抛了别的异常。把域名发我，或去 Pages 项目看 Functions 日志 |
 | 页面样式/脚本没生效 | `Build output directory` 不是 `public`（写成了 `/public`、仓库根目录，或留空） |
 | 注册提示「注册码错误」 | 你配了 `REGISTER_KEY`，但注册时没填或填错了。第一个账号同样要填 |
 | 注册提示「已创建首个账号」 | 没配 `REGISTER_KEY`，而 KV 里已经有账号了。想再开放注册就配上 `REGISTER_KEY` |
@@ -175,6 +176,12 @@ Pages 项目 → `Custom domains` → `Set up a custom domain` → 输入你的�
 | 改了代码但线上没变 | 确认 push 到了 `main`，并在 `Deployments` 里看最新一条是否构建成功 |
 | 图标一直是首字母方块 | 目标站点没有 `/favicon.ico` 或抓不到，会正常回退。想强制重抓：编辑该站点、清空「图标」字段后保存 |
 | 预览部署里功能缺失 | 环境变量/绑定只加到了 Production，Preview 需要单独加 |
+
+---
+
+> 只用浏览器就能分诊：打开 `https://<域名>/api/icon?domain=example.com`
+> —— 返回 404 或一张图 = **KV 正常**；返回 500 = **KV 没绑好**。
+> （这个端点一定会读 KV；而 `/api/config`、`/api/me` 在未登录时不读 KV，所以它们不能用来判断。）
 
 ---
 

@@ -1351,3 +1351,58 @@ test('Pages 的 API 响应与 public/_headers 提供同一套安全头', async (
     assert.match(headerFile, new RegExp(name, 'i'), `public/_headers 缺少 ${name}`);
   }
 });
+
+/* ================= 部署漏配时的可诊断性 ================= */
+
+test('没有绑定 KV 时给出可照做的提示，而不是裸 500', async () => {
+  // 这是部署时最常见的漏配：Pages 项目里忘了绑 NAV_KV。
+  // 前端会把 error 直接显示出来，所以这句话必须能指导用户去改哪里。
+  const noKv = { PUBLIC_MODE: undefined };
+  const response = await pagesOnRequest({
+    request: request('/api/login', { method: 'POST', body: {} }),
+    env: noKv,
+  });
+  assert.equal(response.status, 500);
+
+  const body = await response.json();
+  assert.match(body.error, /KV 绑定/);
+  assert.match(body.error, /NAV_KV/);
+  assert.match(body.error, /KV namespace bindings/);
+  assert.match(body.error, /重新部署/);
+
+  // 安全头依然要有
+  assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
+});
+
+test('KV 绑成别的名字也算没绑（提示同样出现）', async () => {
+  const wrongName = { NAV: new FakeKV() };
+  const response = await pagesOnRequest({ request: request('/api/config'), env: wrongName });
+  assert.equal(response.status, 500);
+  assert.match((await response.json()).error, /NAV_KV/);
+});
+
+test('内部异常返回统一错误，且不泄漏实现细节', async () => {
+  const boom = {
+    NAV_KV: {
+      get() {
+        throw new Error('KV internal: account 12345 unavailable');
+      },
+      put() {},
+      delete() {},
+    },
+  };
+
+  // /api/config 不读 KV，必须用会读 KV 的接口才能走到异常分支
+  const response = await pagesOnRequest({
+    request: request('/api/login', {
+      method: 'POST',
+      body: { username: 'alice', password: 'password123' },
+    }),
+    env: boom,
+  });
+  assert.equal(response.status, 500);
+
+  const body = await response.json();
+  assert.equal(body.error, '服务器内部错误，请查看 Pages 项目的 Functions 日志');
+  assert.equal(/account 12345|KV internal/.test(JSON.stringify(body)), false, '不应回显内部信息');
+});

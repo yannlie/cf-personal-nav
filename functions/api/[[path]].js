@@ -1,6 +1,32 @@
-import { handleApi, withSecurityHeaders } from '../_lib/core.js';
+import { handleApi, json, withSecurityHeaders } from '../_lib/core.js';
+
+// Pages 上部署时最容易漏的一步就是绑 KV。缺了就给出能照着做的提示，
+// 而不是一个光秃秃的 500 —— 前端会把这句 error 直接显示在界面上。
+function missingKvResponse() {
+  return json(
+    {
+      error:
+        '服务器缺少 KV 绑定：请在 Cloudflare Pages 项目 → Settings → Functions → KV namespace bindings 里把变量名设为 NAV_KV（大小写一致），保存后到 Deployments 重新部署一次',
+    },
+    500
+  );
+}
 
 export async function onRequest(context) {
-  // Pages Functions 不会经过 src/index.js，安全头必须在这里也补一次。
-  return withSecurityHeaders(await handleApi(context.request, context.env));
+  const { request, env } = context;
+
+  if (!env || !env.NAV_KV) {
+    // Pages Functions 不走 Workers 入口，安全头必须在这里补
+    return withSecurityHeaders(missingKvResponse());
+  }
+
+  try {
+    return withSecurityHeaders(await handleApi(request, env));
+  } catch {
+    // 不回显内部错误细节，避免把 KV 报错、堆栈之类泄漏给客户端；
+    // 具体原因去 Pages 的 Functions 日志看。
+    return withSecurityHeaders(
+      json({ error: '服务器内部错误，请查看 Pages 项目的 Functions 日志' }, 500)
+    );
+  }
 }
