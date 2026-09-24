@@ -74,6 +74,9 @@ const env = {
   PUBLIC_READONLY: process.env.PUBLIC_READONLY,
   PUBLIC_WRITE_KEY: process.env.PUBLIC_WRITE_KEY,
   REGISTER_KEY: process.env.REGISTER_KEY,
+  // 排查用（与 Pages 环境变量同名，方便本地复现线上问题）
+  DEBUG_ERRORS: process.env.DEBUG_ERRORS,
+  PBKDF2_ITERATIONS: process.env.PBKDF2_ITERATIONS,
 };
 
 const server = http.createServer(async (req, res) => {

@@ -1500,3 +1500,62 @@ test('DEBUG_ERRORS 打开时才回显内部错误细节', async () => {
   ).json();
   assert.match(shown.error, /account 12345/, '打开 DEBUG_ERRORS 后应能看到真实报错');
 });
+
+test('自检端点 /api/diag 默认不可见，打开 DEBUG_ERRORS 后才可用', async () => {
+  const hidden = await worker.fetch(request('/api/diag'), env());
+  assert.equal(hidden.status, 404, '默认应返回 404，不暴露调试接口');
+
+  const shown = await worker.fetch(request('/api/diag'), env(new FakeKV(), { DEBUG_ERRORS: 'true' }));
+  assert.equal(shown.status, 200);
+
+  const report = await shown.json();
+  assert.equal(report.ok, true, `自检未全部通过：${JSON.stringify(report.steps)}`);
+
+  // 每一步都要如实报告成败与耗时
+  const names = report.steps.map((step) => step.name);
+  assert.deepEqual(names, [
+    'kv:get',
+    'kv:put',
+    'kv:delete',
+    'crypto:getRandomValues',
+    'crypto:pbkdf2-1000',
+    'crypto:pbkdf2-25000',
+    'base64',
+  ]);
+  for (const step of report.steps) {
+    assert.equal(step.ok, true, `${step.name} 应通过`);
+    assert.ok(Number.isFinite(step.ms), `${step.name} 应报告耗时`);
+  }
+
+  // 报告运行环境的关键开关，但不泄漏任何值
+  assert.deepEqual(report.runtime, {
+    hasKvBinding: true,
+    hasRegisterKey: false,
+    publicMode: false,
+    publicReadonly: false,
+    pbkdf2Iterations: 25000,
+    debugErrors: true,
+  });
+});
+
+test('自检端点会指出失败的那一步', async () => {
+  const brokenKv = {
+    DEBUG_ERRORS: 'true',
+    NAV_KV: {
+      async get() {
+        throw new Error('KV 读取被拒绝');
+      },
+      async put() {},
+      async delete() {},
+    },
+  };
+
+  const report = await (
+    await worker.fetch(request('/api/diag'), brokenKv)
+  ).json();
+
+  assert.equal(report.ok, false);
+  const failed = report.steps.filter((step) => !step.ok).map((step) => step.name);
+  assert.deepEqual(failed, ['kv:get'], '应精确定位到失败的那一步');
+  assert.match(report.steps[0].error, /KV 读取被拒绝/);
+});

@@ -28,6 +28,7 @@ async function handleApi(request, env) {
   if (request.method === 'GET' && path === 'me') return getMe(request, env);
   if (request.method === 'GET' && path === 'config') return getConfig(env);
   if (request.method === 'GET' && path === 'icon') return getIcon(request, env);
+  if (request.method === 'GET' && path === 'diag') return getDiagnostics(env);
   if (request.method === 'POST' && path === 'register') return register(request, env);
   if (request.method === 'POST' && path === 'login') return login(request, env);
   if (request.method === 'POST' && path === 'logout') return logout(request, env);
@@ -435,6 +436,81 @@ function sanitizeSites(input) {
     output.push(site);
   }
   return output;
+}
+
+// 部署自查端点：只在 DEBUG_ERRORS=true 时可用（否则 404），用来定位「到底哪一步炸了」。
+// 只报每步的成败与耗时，不返回任何用户数据。
+async function getDiagnostics(env) {
+  if (env.DEBUG_ERRORS !== 'true') return json({ error: 'Not found' }, 404);
+
+  const steps = [];
+  const run = async (name, fn) => {
+    const started = Date.now();
+    try {
+      const detail = await fn();
+      steps.push({ name, ok: true, ms: Date.now() - started, detail });
+    } catch (error) {
+      steps.push({
+        name,
+        ok: false,
+        ms: Date.now() - started,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+    }
+  };
+
+  const runPbkdf2 = async (iterations) => {
+    const salt = new Uint8Array(16);
+    crypto.getRandomValues(salt);
+    const key = await crypto.subtle.importKey(
+      'raw',
+      TEXT_ENCODER.encode('diag-password'),
+      'PBKDF2',
+      false,
+      ['deriveBits']
+    );
+    const bits = await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+      key,
+      256
+    );
+    if (bits.byteLength !== 32) throw new Error(`派生长度异常：${bits.byteLength}`);
+    return `${iterations} 次迭代完成`;
+  };
+
+  await run('kv:get', async () => {
+    const value = await env.NAV_KV.get('diag:ping');
+    return value === null ? '正常（键不存在，符合预期）' : `正常（读到 ${String(value).length} 字节）`;
+  });
+  await run('kv:put', async () => {
+    await env.NAV_KV.put('diag:ping', 'ok', { expirationTtl: 60 });
+    return '正常';
+  });
+  await run('kv:delete', async () => {
+    await env.NAV_KV.delete('diag:ping');
+    return '正常';
+  });
+  await run('crypto:getRandomValues', async () => `${crypto.getRandomValues(new Uint8Array(8)).length} 字节正常`);
+  await run('crypto:pbkdf2-1000', () => runPbkdf2(1000));
+  await run('crypto:pbkdf2-25000', () => runPbkdf2(25000));
+  await run('base64', async () => {
+    if (atob(btoa('nav')) !== 'nav') throw new Error('base64 往返不一致');
+    return '正常';
+  });
+
+  return json({
+    ok: steps.every((step) => step.ok),
+    runtime: {
+      hasKvBinding: Boolean(env.NAV_KV),
+      hasRegisterKey: Boolean(env.REGISTER_KEY),
+      publicMode: isPublicMode(env),
+      publicReadonly: isPublicReadonly(env),
+      pbkdf2Iterations: pbkdf2Iterations(env),
+      debugErrors: env.DEBUG_ERRORS === 'true',
+    },
+    steps,
+    note: '毫秒为单位。ok:false 的那一步就是 500 的来源；若 crypto:pbkdf2-25000 明显超过 10ms，说明免费计划 CPU 预算吃紧。',
+  });
 }
 
 // favicon 同源代理：域名严格校验 + KV 长缓存，失败一律 404，绝不把上游错误抛成 500。
