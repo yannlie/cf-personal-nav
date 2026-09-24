@@ -11,7 +11,7 @@
 | `functions/_lib/` | 以 `_` 开头，Pages 不会把它当公开路由暴露 |
 | `public/` | 静态资源，也是 Pages 的「输出目录」 |
 | `public/_headers` | 静态资源的安全响应头（CSP 等），由平台读取 |
-| `wrangler.toml` | 只在用命令行部署时才需要；网页端连 GitHub 时用不到（KV 绑定默认是注释掉的） |
+| `wrangler.toml` | **仓库里刻意不放**：它一旦存在就会接管 Pages 的绑定与环境变量配置。命令行部署时自建一份，见文末 |
 
 > 项目**没有** Workers 入口。以前有的 `src/index.js` 已移除，避免两套入口改一处忘一处。
 
@@ -84,8 +84,23 @@ KV 是存放账号和站点数据的地方。
 
 预期结果：重新部署完成后，访问 `https://<你的域名>/api/config`，
 应返回 `{"publicMode":false,"readonly":false}`。
+若返回 500 且提示「缺少 KV 绑定」，说明绑定没生效。
 
-如果返回 500 / 502，就是绑定名不对或没重新部署。
+### ⚠️ 如果控制台里「Add binding」按钮不可用、不让改
+
+原因：**仓库里只要存在 `wrangler.toml`，Cloudflare 就把它当作 Pages 配置的唯一真源**
+（[官方说明](https://developers.cloudflare.com/pages/functions/wrangler-configuration/)：
+“you must treat your file as the source of truth”），此时控制台的绑定界面不再生效。
+
+两种修法，选一种：
+
+| 修法 | 怎么做 | 适合谁 |
+| --- | --- | --- |
+| **删掉 `wrangler.toml`**（推荐） | 在 GitHub 网页打开该文件 → 右上角垃圾桶图标 → `Commit changes`。Cloudflare 会自动重新部署，之后控制台就能正常加绑定 | 用网页端连 GitHub 的（本仓库默认形态） |
+| **把绑定写进文件** | 在 `wrangler.toml` 里加上 `[[kv_namespaces]]` / `binding = "NAV_KV"` / `id = "<你的 id>"`，提交后自动生效 | 想用命令行、或想让配置进版本库 |
+
+走第二种的话，环境变量（`REGISTER_KEY` 等）建议一并在文件里用 `[vars]` 声明，
+避免「一部分在文件、一部分在控制台」的混淆。
 
 ---
 
@@ -187,13 +202,24 @@ Pages 项目 → `Custom domains` → `Set up a custom domain` → 输入你的�
 
 ## 命令行部署（可选）
 
-网页端连 GitHub 的好处是「push 即部署」，不需要这条。想本地命令行：
+网页端连 GitHub 的好处是「push 即部署」，不需要这条。命令行部署时**要自己建一份
+`wrangler.toml`**（仓库里刻意不放它，原因见步骤 3 的「控制台绑不了 KV」），至少包含：
+
+```toml
+name = "cf-personal-nav"
+pages_build_output_dir = "public"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "NAV_KV"
+id = "你的 KV namespace id"
+```
 
 ```bash
-# 1. 首次：建 KV 并把 id 填进 wrangler.toml（取消那三行注释）
+# 首次：建 KV（用 npx wrangler kv namespace list 可以查 id）
 npx wrangler kv namespace create NAV_KV
 
-# 2. 部署
+# 部署
 npx wrangler pages deploy public --project-name cf-personal-nav
 ```
 

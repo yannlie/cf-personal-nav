@@ -1296,15 +1296,28 @@ function walk(dir, base = dir) {
   return out;
 }
 
-test('只有一套部署入口：Pages Functions，没有遗留的 Workers 入口', () => {
+test('只有一套部署入口，且不存在「wrangler.toml 在、绑定却是空的」死角', () => {
   // 曾经同时存在 functions/api/[[path]].js 与 src/index.js，两套逻辑容易改一处忘一处。
   assert.equal(fs.existsSync(path.join(repoRoot, 'src')), false, 'src/ 应已移除');
 
-  const wrangler = fs.readFileSync(path.join(repoRoot, 'wrangler.toml'), 'utf8');
-  assert.equal(/^\s*main\s*=/m.test(wrangler), false, 'wrangler.toml 不应再有 Workers 的 main');
-  assert.equal(/^\s*assets\s*=/m.test(wrangler), false, 'asssets 配置属于 Workers，Pages 用 pages_build_output_dir');
-  assert.match(wrangler, /^\s*pages_build_output_dir\s*=\s*"public"/m, '应声明 Pages 的输出目录');
-  assert.match(wrangler, /binding\s*=\s*"NAV_KV"/, 'KV 绑定名必须是 NAV_KV');
+  // wrangler.toml 是可选的，但存在时它就是 Pages 配置的唯一真源，
+  // 控制台的绑定界面会被它接管。所以要么干脆没有这个文件（用控制台配绑定），
+  // 要么就是一份完整可用的 Pages 配置 —— 绝不能出现「文件在、绑定却是空的」这种死角。
+  const wranglerPath = path.join(repoRoot, 'wrangler.toml');
+  if (fs.existsSync(wranglerPath)) {
+    const wrangler = fs.readFileSync(wranglerPath, 'utf8');
+    assert.equal(/^\s*main\s*=/m.test(wrangler), false, 'Pages 配置里不应有 Workers 的 main');
+    assert.equal(/^\s*assets\s*=/m.test(wrangler), false, 'assets 属于 Workers，Pages 用 pages_build_output_dir');
+    assert.match(wrangler, /^\s*pages_build_output_dir\s*=\s*"public"/m, '应声明 Pages 的输出目录');
+
+    // 文件存在时 KV 必须在这里绑定，否则应用拿不到 KV、控制台也改不了
+    assert.match(wrangler, /^\s*binding\s*=\s*"NAV_KV"/m, '有 wrangler.toml 时 KV 必须在这里绑定');
+    assert.equal(
+      /replace-with|把这里换成/.test(wrangler),
+      false,
+      '不能留占位 id —— 占位 id 会让 Pages 构建失败'
+    );
+  }
 });
 
 test('Pages 的 API 入口存在，且内部文件不会被当成路由暴露', () => {

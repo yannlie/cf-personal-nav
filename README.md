@@ -77,11 +77,13 @@ functions/                 Cloudflare Pages API
 scripts/dev-server.mjs     零依赖本地开发服务器（复用同一个 API 入口）
 test/                      自动化测试（后端 / 书签 / 使用记录 / 前端）
 .github/workflows/ci.yml   CI：语法检查 + 全部测试
-wrangler.toml              Cloudflare Pages 配置，仅在用命令行部署时才需要
 ```
 
 生产入口只有一个：`functions/api/[[path]].js`（共享逻辑在 `functions/_lib/core.js`，
 `_` 开头不会被 Pages 当成公开路由）。
+
+仓库里刻意**不放** `wrangler.toml`：这个文件一旦存在，Cloudflare 会用它接管 Pages 的绑定
+与环境变量配置（控制台里就改不了了）。命令行部署时再自己加一份，写法见 [DEPLOY.md](DEPLOY.md)。
 
 前端是零依赖的原生 ESM，没有构建步骤；`public/js/` 下的模块可以直接在浏览器里调试。
 

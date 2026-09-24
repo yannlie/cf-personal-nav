@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.mjs",
-    "dev:pages": "wrangler pages dev public",
-    "deploy:pages": "wrangler pages deploy public",
+    "deploy:pages": "wrangler pages deploy public --project-name cf-personal-nav",
     "test": "node --test test/worker.test.mjs test/bookmarks.test.mjs test/history.test.mjs test/frontend.test.mjs"
   },
   "devDependencies": {
